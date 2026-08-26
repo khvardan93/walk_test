@@ -1,59 +1,38 @@
 ﻿using Fusion;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
-public class NetworkPlayer : NetworkBehaviour, INetworkInput
+public class NetworkPlayer : MonoBehaviour, INetworkInput
 {
-    private CharacterMovement _characterMovement;
-    private Rigidbody _rb;
-    private NetworkInputData _lastInputData;
+    private CharacterMovement characterMovement;
+    private NetworkInputData lastInputData;
     
     private void Start()
     {
-        _characterMovement = GetComponent<CharacterMovement>();
-        _rb = GetComponent<Rigidbody>();
+        characterMovement = GetComponent<CharacterMovement>();
         
-        if (_characterMovement == null)
+        if (characterMovement == null)
         {
-            Debug.LogError("CharacterMovement script not found on " + gameObject.name);
+            Debug.LogError("CharacterMovement not found!");
+        }
+    }
+    
+    private void Update()
+    {
+        // Get input from InputHandler
+        lastInputData = InputHandler.CurrentInput;
+        
+        // Apply movement directly
+        if (characterMovement != null)
+        {
+            characterMovement.UpdateMovement(lastInputData);
+            Debug.Log("Update - Movement: " + lastInputData.movement);
         }
     }
     
     public void OnInput(NetworkRunner runner, NetworkInput input)
     {
-        var data = new NetworkInputData();
-        
-        // Player 1: Left Stick (Horizontal, Vertical)
-        float p1_x = Input.GetAxis("Horizontal");
-        float p1_y = Input.GetAxis("Vertical");
-        
-        // Player 2: Right Stick (RightStickX, RightStickY)
-        float p2_x = Input.GetAxis("RightStickX");
-        float p2_y = Input.GetAxis("RightStickY");
-        
-        // COMBINE movement from both players
-        // This creates the chaos - both try to push character in different directions
-        data.movement = new Vector2(
-            p1_x + p2_x,
-            p1_y + p2_y
-        );
-        
-        // Clamp to prevent over-acceleration
-        if (data.movement.magnitude > 1f)
-            data.movement = data.movement.normalized;
-        
-        // Jump: Either player can jump with Space
-        data.jumpPressed = Input.GetButtonDown("Jump");
-        
-        _lastInputData = data;
-        input.Set(data);
-    }
-    
-    public override void FixedUpdateNetwork()
-    {
-        // Only update movement on the input authority (the player controlling this)
-        if (HasInputAuthority && _characterMovement != null)
-        {
-            _characterMovement.UpdateMovement(_lastInputData);
-        }
+        // Store for network sync
+        input.Set(lastInputData);
     }
 }

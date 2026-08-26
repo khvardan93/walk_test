@@ -1,13 +1,13 @@
 ﻿using Fusion;
 using UnityEngine;
 
-public class GameManager : MonoBehaviour, INetworkInput
+public class GameManager : MonoBehaviour
 {
-    [SerializeField] private GameObject _playerPrefab;  // SapphiArtchan prefab
-    [SerializeField] private Transform _spawnPoint;     // Where to spawn player
+    [SerializeField] private GameObject playerPrefab;
+    [SerializeField] private Transform spawnPoint;
     
-    private NetworkRunner _runner;
-    private bool _playerSpawned = false;
+    private NetworkRunner runner;
+    private bool playerSpawned = false;
     
     private async void Start()
     {
@@ -16,49 +16,56 @@ public class GameManager : MonoBehaviour, INetworkInput
     
     private async System.Threading.Tasks.Task StartNetworkGame()
     {
-        // Create a new NetworkRunner
+        // Create NetworkRunner GameObject
         var runnerGO = new GameObject("NetworkRunner");
-        _runner = runnerGO.AddComponent<NetworkRunner>();
+        runner = runnerGO.AddComponent<NetworkRunner>();
         
-        // Add InputHandler to NetworkRunner
+        // Add InputHandler to the runner
         runnerGO.AddComponent<InputHandler>();
         
-        // Configure the runner
+        // Configure runner
         var args = new StartGameArgs();
         args.GameMode = GameMode.Shared;
         args.SessionName = "CorpseParty";
         args.PlayerCount = 2;
         
-        // Start the game
-        await _runner.StartGame(args);
+        // Start the game (don't instantiate again!)
+        await runner.StartGame(args);
         
         Debug.Log("Photon Fusion Started!");
     }
     
     private void Update()
     {
-        // Spawn player once when game starts
-        if (_runner != null && !_playerSpawned && _runner.IsRunning)
+        // Spawn player when runner is ready
+        if (runner != null && !playerSpawned && runner.IsRunning)
         {
             SpawnPlayer();
-            _playerSpawned = true;
+            playerSpawned = true;
         }
     }
     
     private void SpawnPlayer()
     {
-        Vector3 pos = _spawnPoint != null ? _spawnPoint.position : Vector3.zero;
-        Quaternion rot = _spawnPoint != null ? _spawnPoint.rotation : Quaternion.identity;
+        Vector3 pos = spawnPoint != null ? spawnPoint.position : Vector3.zero;
+        Quaternion rot = spawnPoint != null ? spawnPoint.rotation : Quaternion.identity;
         
-        // Spawn the player prefab
-        var playerInstance = Instantiate(_playerPrefab, pos, rot);
+        // Spawn the character
+        var playerInstance = Instantiate(playerPrefab, pos, rot);
         
-        // Make sure it has the NetworkPlayer script
-        if (playerInstance.GetComponent<NetworkPlayer>() == null)
-        {
-            playerInstance.AddComponent<NetworkPlayer>();
-        }
+        // Ensure it has CharacterMovement
+        CharacterMovement charMovement = playerInstance.GetComponent<CharacterMovement>();
+        if (charMovement == null)
+            charMovement = playerInstance.AddComponent<CharacterMovement>();
+        
+        // Ensure it has NetworkPlayer
+        NetworkPlayer netPlayer = playerInstance.GetComponent<NetworkPlayer>();
+        if (netPlayer == null)
+            netPlayer = playerInstance.AddComponent<NetworkPlayer>();
         
         Debug.Log("Player spawned at " + pos);
+        
+        // Fire event
+        GameEvents.CharacterReady(charMovement);
     }
 }

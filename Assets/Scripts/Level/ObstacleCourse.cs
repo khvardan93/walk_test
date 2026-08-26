@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using TMPro;
+using UnityEngine.InputSystem;
 
 public class ObstacleCourse : MonoBehaviour
 {
@@ -20,20 +21,15 @@ public class ObstacleCourse : MonoBehaviour
     {
         timeRemaining = timeLimit;
         StartGame();
-        
-        // Find the player character in scene
-        playerCharacter = FindObjectOfType<CharacterMovement>();
-        
-        if (playerCharacter == null)
-        {
-            Debug.LogError("CharacterMovement not found in scene!");
-        }
-        
+    
+        // Subscribe to character ready event
+        GameEvents.OnCharacterReady += OnCharacterReady;
+    
         if (timerText == null)
         {
             Debug.LogError("Timer Text not assigned!");
         }
-        
+    
         if (statusText == null)
         {
             Debug.LogError("Status Text not assigned!");
@@ -53,32 +49,32 @@ public class ObstacleCourse : MonoBehaviour
     private void Update()
     {
         if (!gameActive) return;
-        
+    
         // Update timer
         timeRemaining -= Time.deltaTime;
-        
+    
         if (timerText != null)
             timerText.text = "Time: " + Mathf.Max(0, timeRemaining).ToString("F1") + "s";
-        
+    
         // Check if time ran out
         if (timeRemaining <= 0)
         {
             LoseGame();
             return;
         }
-        
+    
         // Check if player reached finish line
         if (playerCharacter != null && finishLine != null)
         {
             float distToFinish = Vector3.Distance(playerCharacter.transform.position, finishLine.position);
-            
+        
             if (distToFinish < winDistance && !gameWon)
             {
                 WinGame();
                 return;
             }
         }
-        
+    
         // Check if player fell off the map
         if (playerCharacter != null)
         {
@@ -87,9 +83,10 @@ public class ObstacleCourse : MonoBehaviour
                 RespawnPlayer();
             }
         }
-        
-        // Restart with R key
-        if (Input.GetKeyDown(KeyCode.R))
+    
+        // Restart with R key (NEW INPUT SYSTEM)
+        Keyboard keyboard = Keyboard.current;
+        if (keyboard != null && keyboard.rKey.wasPressedThisFrame)
         {
             RestartGame();
         }
@@ -134,5 +131,18 @@ public class ObstacleCourse : MonoBehaviour
         Time.timeScale = 1f;
         UnityEngine.SceneManagement.SceneManager.LoadScene(
             UnityEngine.SceneManagement.SceneManager.GetActiveScene().name);
+    }
+    
+    // Called when character is ready
+    private void OnCharacterReady(CharacterMovement character)
+    {
+        playerCharacter = character;
+        Debug.Log("ObstacleCourse: Character received!");
+    }
+
+// Clean up event subscription
+    private void OnDestroy()
+    {
+        GameEvents.OnCharacterReady -= OnCharacterReady;
     }
 }

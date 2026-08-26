@@ -26,67 +26,66 @@ public class CharacterMovement : MonoBehaviour
     public void UpdateMovement(NetworkInputData input)
     {
         lastInput = input;
+    }
+    
+    private void FixedUpdate()
+    {
+        if (lastInput.movement == Vector2.zero && !lastInput.jumpPressed)
+            return;
         
         // MOVEMENT: Combined direction from both players
-        Vector3 moveDirection = new Vector3(input.movement.x, 0, input.movement.y);
-        
-        // Calculate speed
+        Vector3 moveDirection = new Vector3(lastInput.movement.x, 0, lastInput.movement.y);
         float inputMagnitude = moveDirection.magnitude;
         
-        // Apply movement to Rigidbody
-        Vector3 velocity = rb.linearVelocity;
-        velocity.x = moveDirection.x * moveSpeed;
-        velocity.z = moveDirection.y * moveSpeed;
-        rb.linearVelocity = velocity;
+        // Apply movement using AddForce (works better than setting velocity)
+        Vector3 force = moveDirection.normalized * moveSpeed;
+        rb.linearVelocity = new Vector3(force.x, rb.linearVelocity.y, force.z);
         
-        // ROTATION: Rotate character to face movement direction
+        Debug.Log("Movement: " + moveDirection + ", Magnitude: " + inputMagnitude);
+        
+        // ROTATION
         if (inputMagnitude > 0.1f)
         {
             Quaternion targetRotation = Quaternion.LookRotation(moveDirection);
             rb.rotation = Quaternion.Lerp(rb.rotation, targetRotation, Time.deltaTime * rotationSpeed);
         }
         
-        // ANIMATION STATE MACHINE
-        if (input.jumpPressed && isGrounded)
+        // JUMP
+        if (lastInput.jumpPressed && isGrounded)
         {
-            // JUMP
             rb.linearVelocity = new Vector3(rb.linearVelocity.x, jumpForce, rb.linearVelocity.z);
-            animator.SetTrigger("param_Idletojump");
+            animator.SetBool("param_Idletojump", true);
             currentState = "jump";
             isGrounded = false;
         }
-        else if (inputMagnitude < 0.1f)
+        else
         {
-            // IDLE
-            if (currentState != "idle")
-            {
-                // We're stopping - don't trigger anything, just let animation fade
-                currentState = "idle";
-            }
+            animator.SetBool("param_Idletojump", false);
+        }
+        
+        // ANIMATIONS based on speed
+        if (inputMagnitude < 0.1f)
+        {
+            animator.SetBool("param_Idletowalk", false);
+            animator.SetBool("param_Idletorunning", false);
+            currentState = "idle";
         }
         else if (inputMagnitude > 0.5f)
         {
-            // RUNNING (high speed)
-            if (currentState != "running")
-            {
-                animator.SetTrigger("param_Idletorunning");
-                currentState = "running";
-            }
+            animator.SetBool("param_Idletowalk", false);
+            animator.SetBool("param_Idletorunning", true);
+            currentState = "running";
         }
         else
         {
-            // WALKING (low speed)
-            if (currentState != "walk")
-            {
-                animator.SetTrigger("param_Idletowalk");
-                currentState = "walk";
-            }
+            animator.SetBool("param_Idletorunning", false);
+            animator.SetBool("param_Idletowalk", true);
+            currentState = "walk";
         }
     }
     
     private void OnCollisionEnter(Collision collision)
     {
-        // Check if we hit the ground
         if (collision.gameObject.CompareTag("Ground"))
         {
             isGrounded = true;
