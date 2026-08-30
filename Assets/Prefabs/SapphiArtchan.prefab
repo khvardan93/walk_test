@@ -595,7 +595,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: aeda7bfbf984f2a4da5ab4b8967b115d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Animation.Rigging::UnityEngine.Animations.Rigging.TwoBoneIKConstraint
-  m_Weight: 1
+  m_Weight: 0
   m_Data:
     m_Root: {fileID: 2180025747903861778}
     m_Mid: {fileID: 4868920984830025458}
@@ -1294,7 +1294,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &4097259883858434235
 Transform:
   m_ObjectHideFlags: 0
@@ -2748,7 +2748,7 @@ GameObject:
   - component: {fileID: 3844442481034909989}
   - component: {fileID: 1535251144430364915}
   - component: {fileID: 4941050061285076614}
-  - component: {fileID: 3010837841399665745}
+  - component: {fileID: -3551138923152663776}
   m_Layer: 0
   m_Name: SapphiArtchan
   m_TagString: Untagged
@@ -2873,9 +2873,7 @@ MonoBehaviour:
   rb: {fileID: 5514596183522676737}
   animator: {fileID: 5302261354775037628}
   limbController: {fileID: 4941050061285076614}
-  moveSpeed: 5
-  rotationSpeed: 5
-  jumpForce: 5
+  stepController: {fileID: -3551138923152663776}
 --- !u!114 &1535251144430364915
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2883,7 +2881,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2888142368282429891}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fff0960ef4ea6e04eac66b4a7fd2189d, type: 3}
   m_Name: 
@@ -2899,7 +2897,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2888142368282429891}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ed83e725e41c40848f482a835262e974, type: 3}
   m_Name: 
@@ -2909,9 +2907,9 @@ MonoBehaviour:
   rightArmTarget: {fileID: 3603194988201306412}
   rightLegTarget: {fileID: 8810530505222967532}
   armReach: 0.25
-  legReach: 0.15
+  legReach: 0
   followSpeed: 10
---- !u!114 &3010837841399665745
+--- !u!114 &-3551138923152663776
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -2920,9 +2918,18 @@ MonoBehaviour:
   m_GameObject: {fileID: 2888142368282429891}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: bb2ce206274e4d9f96c1479517a2cb25, type: 3}
+  m_Script: {fileID: 11500000, guid: a568a6db2475447bb5f9ae505a6149e4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::NetworkPlayer
+  m_EditorClassIdentifier: Assembly-CSharp::StepController
+  rb: {fileID: 5514596183522676737}
+  animator: {fileID: 5302261354775037628}
+  walkStateName: walk
+  idleStateName: idle
+  inputThreshold: 0.5
+  stepDuration: 0.35
+  strideDistance: 0.6
+  turnStepAngle: 45
+  idleResetTime: 2
 --- !u!1 &2916859147828624464
 GameObject:
   m_ObjectHideFlags: 0
@@ -5671,7 +5678,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: aeda7bfbf984f2a4da5ab4b8967b115d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Animation.Rigging::UnityEngine.Animations.Rigging.TwoBoneIKConstraint
-  m_Weight: 1
+  m_Weight: 0
   m_Data:
     m_Root: {fileID: 3217102686143080341}
     m_Mid: {fileID: 3716961466611149546}
