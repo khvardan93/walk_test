@@ -15,10 +15,6 @@ public class StepController : MonoBehaviour
     [SerializeField] private float stepDuration = 0.35f;
     [SerializeField] private float strideDistance = 0.6f;
     [SerializeField] private float turnStepAngle = 45f;   // degrees rotated per turn-step
-    [SerializeField] private float idleResetTime = 2f;
-
-    // Whose turn it is. Player 1 owns the left leg and goes first.
-    private bool leftLegsTurn = true;
 
     // Manual playback position through the walk cycle, 0..1
     private float gaitTime = 0f;
@@ -34,16 +30,12 @@ public class StepController : MonoBehaviour
     private float activeStepForward = 0f; // meters
     private float activeStepTurn = 0f;    // degrees
 
-    // Rising edge detection (forward = y, turn = x) per player
-    private float p1PrevForward = 0f;
-    private float p2PrevForward = 0f;
-    private float p1PrevTurn = 0f;
-    private float p2PrevTurn = 0f;
-
-    private float timeSinceLastStep = 0f;
-
     // Stay in the controller's default idle until the very first step
     private bool everStepped = false;
+
+    // Which side stepped last, so that when both players hold at once we
+    // alternate into a real walk instead of starving one side.
+    private bool lastStepLeft = false;
 
     private void Start()
     {
@@ -60,41 +52,61 @@ public class StepController : MonoBehaviour
 
     private void HandleStepInput(Vector2 p1Input, Vector2 p2Input)
     {
-        float p1Forward = p1Input.y, p2Forward = p2Input.y;
-        float p1Turn = p1Input.x, p2Turn = p2Input.x;
+        // Level-triggered: while no step is running, any held direction starts
+        // the next one. A tap yields a single step; holding auto-repeats one
+        // step every stepDuration (the stepping lock paces it).
+        if (stepping)
+            return;
 
-        if (!stepping)
+        // Does each side want to act this frame? Forward/back = Y (either sign),
+        // turn = X.
+        bool leftWants  = Mathf.Abs(p1Input.y) >= inputThreshold || Mathf.Abs(p1Input.x) >= inputThreshold;
+        bool rightWants = Mathf.Abs(p2Input.y) >= inputThreshold || Mathf.Abs(p2Input.x) >= inputThreshold;
+
+        bool chooseLeft;
+        if (leftWants && rightWants)
+            chooseLeft = !lastStepLeft; // both held -> alternate into a walk
+        else if (leftWants)
+            chooseLeft = true;
+        else if (rightWants)
+            chooseLeft = false;
+        else
+            return; // nothing held
+
+        // Within the chosen side, a forward/back step beats a turn. The sign of
+        // Y decides direction: +1 forward, -1 backward.
+        if (chooseLeft)
         {
-            // Rising edge: was below threshold, now at/above. Forward taps a
-            // walk-step; a sideways tap turns. Only the player whose turn it is
-            // may act, and forward wins if both fire on the same frame.
-            bool fwdFired = RisingEdge(leftLegsTurn ? p1PrevForward : p2PrevForward,
-                                       leftLegsTurn ? p1Forward : p2Forward);
-            float turnNow = leftLegsTurn ? p1Turn : p2Turn;
-            bool turnFired = RisingEdge(Mathf.Abs(leftLegsTurn ? p1PrevTurn : p2PrevTurn),
-                                        Mathf.Abs(turnNow));
-
-            if (fwdFired) BeginStep(strideDistance, 0f);
-            else if (turnFired) BeginStep(0f, Mathf.Sign(turnNow) * turnStepAngle);
+            if (Mathf.Abs(p1Input.y) >= inputThreshold) BeginStep(true, Mathf.Sign(p1Input.y) * strideDistance, 0f);
+            else BeginStep(true, 0f, Mathf.Sign(p1Input.x) * turnStepAngle);
+        }
+        else
+        {
+            if (Mathf.Abs(p2Input.y) >= inputThreshold) BeginStep(false, Mathf.Sign(p2Input.y) * strideDistance, 0f);
+            else BeginStep(false, 0f, Mathf.Sign(p2Input.x) * turnStepAngle);
         }
 
-        p1PrevForward = p1Forward; p2PrevForward = p2Forward;
-        p1PrevTurn = p1Turn; p2PrevTurn = p2Turn;
+        lastStepLeft = chooseLeft;
     }
 
-    private static bool RisingEdge(float prev, float now)
-    {
-        return prev < 0.5f && now >= 0.5f;
-    }
-
-    private void BeginStep(float forward, float turn)
+    private void BeginStep(bool leftLeg, float forward, float turn)
     {
         stepping = true;
         everStepped = true;
         stepElapsed = 0f;
-        gaitStart = gaitTime;
-        gaitEnd = gaitStart + 0.5f; // half a cycle = one step
-        timeSinceLastStep = 0f;
+        // Each side owns a FIXED half of the walk cycle, so repeated taps of the
+        // same side always reproduce that leg's step instead of walking on.
+        // For this clip the first half [0, 0.5] is the right leg and the second
+        // half [0.5, 1.0] is the left leg, so P1/W (leftLeg) takes the second
+        // half. If the legs ever look swapped, flip these two values.
+        gaitStart = leftLeg ? 0.5f : 0f;
+        gaitEnd = gaitStart + 0.5f;
+        // A backward step plays that same half in reverse so the leg steps back
+        // instead of moonwalking.
+        if (forward < 0f)
+        {
+            (gaitStart, gaitEnd) = (gaitEnd, gaitStart);
+        }
         activeStepForward = forward;
         activeStepTurn = turn;
     }
@@ -102,16 +114,7 @@ public class StepController : MonoBehaviour
     private void AdvanceStep()
     {
         if (!stepping)
-        {
-            timeSinceLastStep += Time.deltaTime;
-
-            // Settle back to a neutral turn order if both players stop
-            if (timeSinceLastStep > idleResetTime)
-            {
-                leftLegsTurn = true;
-            }
             return;
-        }
 
         stepElapsed += Time.deltaTime;
         float t = Mathf.Clamp01(stepElapsed / stepDuration);
@@ -129,8 +132,7 @@ public class StepController : MonoBehaviour
         if (t >= 1f)
         {
             stepping = false;
-            gaitTime = gaitEnd % 1f;      // wrap cleanly
-            leftLegsTurn = !leftLegsTurn; // pass the turn to the other player
+            gaitTime = gaitEnd % 1f; // wrap cleanly
         }
     }
 
@@ -153,7 +155,6 @@ public class StepController : MonoBehaviour
         animator.Update(0f);
     }
 
-    // Exposed so UI or debugging can show whose turn it is
-    public bool IsLeftLegsTurn => leftLegsTurn;
+    // Exposed so UI or debugging can show whether a step is in progress
     public bool IsStepping => stepping;
 }
