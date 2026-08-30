@@ -25,5 +25,12 @@ public class GameManager : MonoBehaviour
         
         Debug.Log("Player spawned at " + pos);
         GameEvents.CharacterReady(charMovement);
+        
+        // Assign camera target
+        SimpleFollowCamera cam = FindObjectOfType<SimpleFollowCamera>();
+        if (cam != null)
+        {
+            cam.SetTarget(playerInstance.transform);
+        }
     }
 }
