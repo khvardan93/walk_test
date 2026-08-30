@@ -13,7 +13,7 @@ public class NetworkPlayer : MonoBehaviour
     {
         if (characterMovement != null)
         {
-            characterMovement.UpdateMovement(InputHandler.Player1Input, InputHandler.Player2Input, InputHandler.JumpPressed);
+            characterMovement.UpdateMovement(InputHandler.Player1Input, InputHandler.Player2Input, InputHandler.Player1Jump, InputHandler.Player2Jump);
         }
     }
 }

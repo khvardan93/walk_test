@@ -9,12 +9,20 @@ public class StepController : MonoBehaviour
     [Header("Animator")]
     [SerializeField] private string walkStateName = "walk";
     [SerializeField] private string idleStateName = "idle";
+    [SerializeField] private string jumpStateName = "jump";
 
     [Header("Step Tuning")]
     [SerializeField] private float inputThreshold = 0.5f;
     [SerializeField] private float stepDuration = 0.35f;
     [SerializeField] private float strideDistance = 0.6f;
-    [SerializeField] private float turnStepAngle = 45f;   // degrees rotated per turn-step
+    [SerializeField] private float turnStepAngle = 20f;   // degrees rotated per turn-step
+
+    [Header("Jump Tuning")]
+    [SerializeField] private float jumpSpeed = 6f;             // upward velocity of a full (both-player) jump
+    [SerializeField] private float soloJumpFactor = 0.6f;     // fraction of the height when only one player jumps
+    [SerializeField] private float soloJumpSideSpeed = 1.5f;  // sideways velocity nudging a solo jump toward the jumper
+    [SerializeField] private float jumpBufferTime = 0.12f;    // window to catch the other player's press as "together"
+    [SerializeField] private string groundTag = "Ground";
 
     // Manual playback position through the walk cycle, 0..1
     private float gaitTime = 0f;
@@ -37,14 +45,24 @@ public class StepController : MonoBehaviour
     // alternate into a real walk instead of starving one side.
     private bool lastStepLeft = false;
 
+    // Jump state
+    private bool grounded = false;
+    private bool prevP1Jump = false;
+    private bool prevP2Jump = false;
+    private bool jumpPending = false;   // waiting out the buffer to see if the other player also jumps
+    private float jumpPendingTimer = 0f;
+    private bool jumpP1 = false;        // did P1 contribute to the pending jump
+    private bool jumpP2 = false;        // did P2 contribute
+
     private void Start()
     {
         if (rb == null) rb = GetComponent<Rigidbody>();
         if (animator == null) animator = GetComponent<Animator>();
     }
 
-    public void Tick(Vector2 p1Input, Vector2 p2Input)
+    public void Tick(Vector2 p1Input, Vector2 p2Input, bool p1Jump, bool p2Jump)
     {
+        HandleJump(p1Jump, p2Jump);
         HandleStepInput(p1Input, p2Input);
         AdvanceStep();
         DriveAnimator();
@@ -54,8 +72,9 @@ public class StepController : MonoBehaviour
     {
         // Level-triggered: while no step is running, any held direction starts
         // the next one. A tap yields a single step; holding auto-repeats one
-        // step every stepDuration (the stepping lock paces it).
-        if (stepping)
+        // step every stepDuration (the stepping lock paces it). Steps only start
+        // on the ground so MovePosition never fights an airborne jump arc.
+        if (stepping || !grounded)
             return;
 
         // Does each side want to act this frame? Forward/back = Y (either sign),
@@ -73,20 +92,113 @@ public class StepController : MonoBehaviour
         else
             return; // nothing held
 
-        // Within the chosen side, a forward/back step beats a turn. The sign of
-        // Y decides direction: +1 forward, -1 backward.
+        // A step carries BOTH a forward/back component (Y) and a turn component
+        // (X) at once, so pressing e.g. W+D takes one curved step. Either can be
+        // zero; the chosen side always has at least one past threshold.
         if (chooseLeft)
+            BeginStep(true, StepForward(p1Input.y), StepTurn(p1Input.x));
+        else
+            BeginStep(false, StepForward(p2Input.y), StepTurn(p2Input.x));
+
+        lastStepLeft = chooseLeft;
+    }
+
+    private void HandleJump(bool p1Jump, bool p2Jump)
+    {
+        // Rising edges (pressed this frame)
+        bool p1Edge = p1Jump && !prevP1Jump;
+        bool p2Edge = p2Jump && !prevP2Jump;
+        prevP1Jump = p1Jump;
+        prevP2Jump = p2Jump;
+
+        if (!jumpPending)
         {
-            if (Mathf.Abs(p1Input.y) >= inputThreshold) BeginStep(true, Mathf.Sign(p1Input.y) * strideDistance, 0f);
-            else BeginStep(true, 0f, Mathf.Sign(p1Input.x) * turnStepAngle);
+            // Open a short buffer on the first press so a near-simultaneous
+            // second press still counts as a coordinated (full) jump.
+            if (grounded && (p1Edge || p2Edge))
+            {
+                jumpPending = true;
+                jumpPendingTimer = jumpBufferTime;
+                jumpP1 = p1Jump;
+                jumpP2 = p2Jump;
+            }
+            else
+            {
+                return;
+            }
         }
         else
         {
-            if (Mathf.Abs(p2Input.y) >= inputThreshold) BeginStep(false, Mathf.Sign(p2Input.y) * strideDistance, 0f);
-            else BeginStep(false, 0f, Mathf.Sign(p2Input.x) * turnStepAngle);
+            // Catch the other player's press during the window
+            jumpP1 |= p1Jump;
+            jumpP2 |= p2Jump;
+            jumpPendingTimer -= Time.deltaTime;
         }
 
-        lastStepLeft = chooseLeft;
+        // Fire as soon as both are in, or when the buffer expires with just one.
+        if ((jumpP1 && jumpP2) || jumpPendingTimer <= 0f)
+        {
+            ExecuteJump(jumpP1, jumpP2);
+            jumpPending = false;
+            jumpP1 = jumpP2 = false;
+        }
+    }
+
+    private void ExecuteJump(bool p1, bool p2)
+    {
+        if (!grounded) return;
+
+        // A jump interrupts any in-progress step so MovePosition stops pinning
+        // the body while it leaves the ground.
+        stepping = false;
+
+        Vector3 v = rb.linearVelocity;
+
+        if (p1 && p2)
+        {
+            v.y = jumpSpeed; // coordinated: full height, straight up
+        }
+        else
+        {
+            v.y = jumpSpeed * soloJumpFactor; // solo: lower...
+            // ...and the arc leans toward the jumper instead of the body turning.
+            // P2 owns the right side, P1 the left.
+            float dir = p2 ? 1f : -1f;
+            v += transform.right * (dir * soloJumpSideSpeed);
+        }
+
+        rb.linearVelocity = v;
+        grounded = false;
+
+        animator.Play(jumpStateName, 0, 0f);
+        animator.Update(0f);
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (collision.collider.CompareTag(groundTag)) grounded = true;
+    }
+
+    private void OnCollisionStay(Collision collision)
+    {
+        if (collision.collider.CompareTag(groundTag)) grounded = true;
+    }
+
+    private void OnCollisionExit(Collision collision)
+    {
+        if (collision.collider.CompareTag(groundTag)) grounded = false;
+    }
+
+    // Y past threshold -> a forward (+) or backward (-) stride, else no advance.
+    private float StepForward(float y)
+    {
+        return Mathf.Abs(y) >= inputThreshold ? Mathf.Sign(y) * strideDistance : 0f;
+    }
+
+    // X past threshold -> a turn right (+) or left (-), else no turn.
+    private float StepTurn(float x)
+    {
+        return Mathf.Abs(x) >= inputThreshold ? Mathf.Sign(x) * turnStepAngle : 0f;
     }
 
     private void BeginStep(bool leftLeg, float forward, float turn)
@@ -148,6 +260,9 @@ public class StepController : MonoBehaviour
         // Pinning normalizedTime to gaitTime every frame means: while stepping,
         // gaitTime advances so a half gait-cycle plays; between steps gaitTime
         // is constant so the pose freezes on the last stride.
+        if (!grounded)
+            return; // airborne -> let the jump clip play instead of the walk scrub
+
         if (!stepping && !everStepped)
             return; // untouched -> character shows the controller's default idle
 

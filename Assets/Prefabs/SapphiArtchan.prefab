@@ -2928,7 +2928,7 @@ MonoBehaviour:
   inputThreshold: 0.5
   stepDuration: 0.35
   strideDistance: 0.6
-  turnStepAngle: 45
+  turnStepAngle: 20
   idleResetTime: 2
 --- !u!1 &2916859147828624464
 GameObject:
